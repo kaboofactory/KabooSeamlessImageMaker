@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Kaboo Seamless Image Maker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Kaboo Seamless Image Maker</h1>
+      <p>PNGをブラウザ内でシームレス化。読み込み / ドラッグ＆ドロップ / Ctrl+V 対応。</p>
+    </div>
+  </header>
+
+  <main class="app-grid">
+    <aside class="panel controls-panel">
+      <section class="control-section">
+        <h2>1. 画像</h2>
+        <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="画像を読み込む">
+          <input id="fileInput" type="file" accept="image/png,image/*" hidden />
+          <div class="drop-icon">＋</div>
+          <div class="drop-main">PNGをドロップ</div>
+          <div class="drop-sub">または Ctrl+V で貼り付け</div>
+          <button id="loadButton" class="secondary-btn" type="button">読み込み</button>
+        </div>
+        <div id="fileInfo" class="file-info">画像はまだ読み込まれていません。</div>
+      </section>
+
+      <section class="control-section">
+        <h2>2. シームレス方向</h2>
+        <div class="segmented" role="radiogroup" aria-label="シームレス方向">
+          <label><input type="radio" name="direction" value="horizontal" /> <span>横のみ<small>左右を接続</small></span></label>
+          <label><input type="radio" name="direction" value="vertical" /> <span>縦のみ<small>上下を接続</small></span></label>
+          <label><input type="radio" name="direction" value="both" checked /> <span>縦横<small>四辺を接続</small></span></label>
+        </div>
+      </section>
+
+      <section class="control-section">
+        <h2>3. アルゴリズム</h2>
+        <select id="algorithmSelect" class="select-control">
+          <option value="offset">50% Offset + Feather（おすすめ）</option>
+          <option value="edge">Opposite Edge Blend（中心を保持）</option>
+          <option value="tone">Tone Match + Edge Blend（照明ムラ向け）</option>
+          <option value="mirror">Mirror 2× Tile（完全一致・対称）</option>
+        </select>
+        <div id="algorithmHelp" class="algorithm-help"></div>
+
+        <div id="curveRow" class="field-row">
+          <label for="curveSelect">フェード曲線</label>
+          <select id="curveSelect" class="select-control compact">
+            <option value="smoothstep" selected>Smoothstep</option>
+            <option value="cosine">Cosine</option>
+            <option value="linear">Linear</option>
+          </select>
+        </div>
+      </section>
+
+      <section id="borderSection" class="control-section">
+        <h2>4. ボーダー幅</h2>
+        <div class="border-inputs">
+          <input id="borderNumber" type="number" min="0.1" step="0.1" value="12" />
+          <select id="borderUnit" class="unit-select">
+            <option value="percent" selected>%</option>
+            <option value="px">px</option>
+          </select>
+        </div>
+        <input id="borderRange" type="range" min="0.5" max="49" step="0.5" value="12" />
+        <div id="borderHint" class="hint">横は画像幅、縦は画像高に対する割合です。</div>
+      </section>
+
+      <section class="action-section">
+        <div id="status" class="status" aria-live="polite">画像を読み込んでください。</div>
+      </section>
+    </aside>
+
+    <section class="panel preview-panel">
+      <div class="preview-toolbar">
+        <div class="view-tabs" role="tablist" aria-label="プレビュー表示">
+          <button class="view-tab active" data-view="side" type="button">比較</button>
+          <button class="view-tab" data-view="split" type="button">分割比較</button>
+          <button class="view-tab" data-view="tile" type="button">3×3タイル</button>
+        </div>
+        <div class="preview-meta">
+          <div id="resultInfo" class="result-info">—</div>
+          <div class="interaction-hint">ホイールで拡大縮小 / ドラッグで移動 / スマホはピンチ対応</div>
+        </div>
+      </div>
+
+      <div id="emptyPreview" class="empty-preview">
+        <div class="empty-art">▦</div>
+        <strong>画像を読み込むとここに表示されます</strong>
+        <span>読み込み / ドロップ / Ctrl+V</span>
+      </div>
+
+      <div id="sideView" class="view-pane hidden">
+        <div class="compare-grid">
+          <figure class="preview-card">
+            <figcaption>変換前</figcaption>
+            <div id="beforeViewport" class="canvas-shell checker panzoom-viewport">
+              <div class="panzoom-stage"><canvas id="beforePreview"></canvas></div>
+              <div class="pz-toolbar" aria-label="変換前プレビュー操作">
+                <button type="button" data-action="zoomout">－</button>
+                <button type="button" data-action="reset">全体</button>
+                <button type="button" data-action="zoomin">＋</button>
+              </div>
+            </div>
+          </figure>
+          <figure class="preview-card">
+            <figcaption>変換後</figcaption>
+            <div id="afterViewport" class="canvas-shell checker panzoom-viewport">
+              <div class="panzoom-stage"><canvas id="afterPreview"></canvas></div>
+              <div class="pz-toolbar" aria-label="変換後プレビュー操作">
+                <button type="button" data-action="zoomout">－</button>
+                <button type="button" data-action="reset">全体</button>
+                <button type="button" data-action="zoomin">＋</button>
+              </div>
+            </div>
+          </figure>
+        </div>
+      </div>
+
+      <div id="splitView" class="view-pane hidden">
+        <div id="splitViewport" class="split-wrap checker panzoom-viewport">
+          <div class="panzoom-stage split-stage">
+            <canvas id="splitCanvas"></canvas>
+            <div id="splitLine" class="split-line"><span></span></div>
+          </div>
+          <div class="pz-toolbar" aria-label="分割比較プレビュー操作">
+            <button type="button" data-action="zoomout">－</button>
+            <button type="button" data-action="reset">全体</button>
+            <button type="button" data-action="zoomin">＋</button>
+          </div>
+        </div>
+        <div class="split-labels"><span>変換前</span><span>変換後</span></div>
+        <input id="splitRange" class="split-range" type="range" min="0" max="100" value="50" />
+      </div>
+
+      <div id="tileView" class="view-pane hidden">
+        <div class="tile-note">同じ画像を3×3にリピートして継ぎ目を確認します。</div>
+        <div id="tileViewport" class="tile-shell checker panzoom-viewport">
+          <div class="panzoom-stage"><canvas id="tileCanvas"></canvas></div>
+          <div class="pz-toolbar" aria-label="3×3タイルプレビュー操作">
+            <button type="button" data-action="zoomout">－</button>
+            <button type="button" data-action="reset">全体</button>
+            <button type="button" data-action="zoomin">＋</button>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="preview-bottom-actions">
+        <button id="downloadButton" class="primary-btn preview-download-btn" type="button" disabled>PNGを保存</button>
+      </div>
+    </section>
+  </main>
+
+  <canvas id="sourceCanvas" hidden></canvas>
+  <canvas id="resultCanvas" hidden></canvas>
+
+  <div id="processingOverlay" class="processing-overlay hidden" aria-live="polite" aria-hidden="true">
+    <div class="processing-dialog" role="status" aria-label="画像を変換中">
+      <div class="processing-spinner" aria-hidden="true"></div>
+      <div class="processing-text">変換中...</div>
+    </div>
+  </div>
+
+  <script src="seamless-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
